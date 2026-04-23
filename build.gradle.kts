@@ -1,7 +1,10 @@
+﻿import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+
 plugins {
-    kotlin("jvm") version "1.9.22"
-    kotlin("plugin.serialization") version "1.9.22"
-    application
+    kotlin("jvm") version "1.9.21"
+    kotlin("plugin.serialization") version "1.9.21"
+    id("org.jetbrains.compose") version "1.5.11"
+//    application
 }
 
 group = "com.example"
@@ -9,6 +12,8 @@ version = "1.0.0"
 
 repositories {
     mavenCentral()
+    maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
+    google()
 }
 
 dependencies {
@@ -30,6 +35,14 @@ dependencies {
     // Password hashing
     implementation("org.mindrot:jbcrypt:0.4")
     
+    // Compose Desktop (NEW!)
+    implementation(compose.desktop.currentOs)
+    implementation(compose.material3)
+    implementation(compose.materialIconsExtended)
+    
+    // Coroutines for Swing
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.7.3")
+    
     // Logging
     implementation("ch.qos.logback:logback-classic:1.4.14")
     
@@ -38,8 +51,25 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test")
 }
 
-application {
-    mainClass.set("com.example.ApplicationKt")
+//application {
+//    mainClass.set("com.example.ApplicationKt")
+//}
+
+// Compose Desktop configuration
+compose.desktop {
+    application {
+        mainClass = "com.example.AdminAppKt"  // Admin UI entry point
+        
+        nativeDistributions {
+            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            packageName = "Kotlin Server Admin"
+            packageVersion = "1.0.0"
+            
+            windows {
+                iconFile.set(project.file("src/main/resources/icon.ico"))
+            }
+        }
+    }
 }
 
 tasks.test {
@@ -49,11 +79,11 @@ tasks.test {
 kotlin {
     jvmToolchain(17)
 }
-// 在 build.gradle.kts 末尾添加打包任务
 
+// Fat JAR task for server-only deployment
 tasks.register<Jar>("fatJar") {
     group = "build"
-    description = "Creates a fat JAR with all dependencies"
+    description = "Creates a fat JAR with all dependencies (server only)"
     manifest {
         attributes["Main-Class"] = "com.example.ApplicationKt"
     }
