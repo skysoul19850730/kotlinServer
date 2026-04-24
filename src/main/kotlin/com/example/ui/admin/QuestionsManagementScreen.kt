@@ -1,5 +1,6 @@
 ﻿package com.example.ui.admin
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -9,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.example.models.ReasoningQuestion
 
@@ -38,17 +40,28 @@ fun QuestionsManagementScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Question Management",
-                style = MaterialTheme.typography.headlineMedium
-            )
+            Column {
+                Text(
+                    text = "Question Management",
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                Text(
+                    text = "${state.questions.size} questions",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             
-            Button(
-                onClick = { showAddDialog = true }
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
+            Row {
+                IconButton(onClick = { viewModel.loadQuestions() }) {
+                    Icon(Icons.Default.Refresh, "Refresh")
+                }
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Add Question")
+                Button(onClick = { showAddDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Add Question")
+                }
             }
         }
         
@@ -79,7 +92,7 @@ fun QuestionsManagementScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
         
-        // Loading indicator
+        // Loading
         if (state.isLoading) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -88,7 +101,6 @@ fun QuestionsManagementScreen(
                 CircularProgressIndicator()
             }
         } else if (state.questions.isEmpty()) {
-            // Empty state
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -108,14 +120,13 @@ fun QuestionsManagementScreen(
                         style = MaterialTheme.typography.titleLarge
                     )
                     Text(
-                        text = "Click ''Add Question'' to create your first question",
+                        text = "Click 'Add Question' to create your first question",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         } else {
-            // Questions list
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -140,12 +151,14 @@ fun QuestionsManagementScreen(
     if (showAddDialog) {
         AddQuestionDialog(
             onDismiss = { showAddDialog = false },
-            onConfirm = { title, content, answer, difficulty ->
+            onConfirm = { title, content, answer, difficulty, contentImage, answerImage ->
                 viewModel.createQuestion(
                     title = title,
                     contentText = content,
                     answerText = answer,
                     difficulty = difficulty,
+                    contentImageFile = contentImage,
+                    answerImageFile = answerImage,
                     onSuccess = { showAddDialog = false }
                 )
             }
@@ -160,7 +173,7 @@ fun QuestionsManagementScreen(
                 showEditDialog = false
                 viewModel.selectQuestion(null)
             },
-            onConfirm = { title, content, answer, difficulty ->
+            onConfirm = { title, content, answer, difficulty, contentImage, answerImage ->
                 viewModel.updateQuestion(
                     questionId = state.selectedQuestion!!.id,
                     userId = state.selectedQuestion!!.userId,
@@ -168,6 +181,8 @@ fun QuestionsManagementScreen(
                     contentText = content,
                     answerText = answer,
                     difficulty = difficulty,
+                    contentImageFile = contentImage,
+                    answerImageFile = answerImage,
                     onSuccess = {
                         showEditDialog = false
                         viewModel.selectQuestion(null)
@@ -177,7 +192,7 @@ fun QuestionsManagementScreen(
         )
     }
     
-    // Delete Confirmation Dialog
+    // Delete Dialog
     if (showDeleteDialog && questionToDelete != null) {
         AlertDialog(
             onDismissRequest = {
@@ -228,12 +243,17 @@ fun QuestionsManagementScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuestionCard(
     question: ReasoningQuestion,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val contentImage = remember(question.contentImagePath) {
+        loadImageBitmapFromPath(question.contentImagePath)
+    }
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -252,11 +272,23 @@ fun QuestionCard(
                         style = MaterialTheme.typography.titleMedium
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Difficulty: ${getDifficultyText(question.difficulty)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = getDifficultyColor(question.difficulty)
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Badge(
+                            containerColor = getDifficultyColor(question.difficulty)
+                        ) {
+                            Text(getDifficultyText(question.difficulty))
+                        }
+                        
+                        if (question.contentImagePath != null) {
+                            Badge(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Text("Has Image")
+                            }
+                        }
+                    }
                 }
                 
                 Row {
@@ -274,6 +306,19 @@ fun QuestionCard(
             }
             
             Spacer(modifier = Modifier.height(8.dp))
+            
+            // Show image preview if exists
+            if (contentImage != null) {
+                Image(
+                    bitmap = contentImage,
+                    contentDescription = "Question image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 120.dp),
+                    contentScale = ContentScale.Fit
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             
             Text(
                 text = "Content: ${question.contentText?.take(100) ?: "No content"}${if ((question.contentText?.length ?: 0) > 100) "..." else ""}",

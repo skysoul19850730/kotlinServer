@@ -2,12 +2,14 @@
 
 import com.example.database.dao.ReasoningQuestionDao
 import com.example.models.ReasoningQuestion
+import com.example.utils.ImageUtil
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 
 data class QuestionManagementState(
     val questions: List<ReasoningQuestion> = emptyList(),
@@ -23,13 +25,11 @@ class QuestionManagementViewModel {
     private val _state = MutableStateFlow(QuestionManagementState())
     val state: StateFlow<QuestionManagementState> = _state.asStateFlow()
     
-    // Load all questions for admin (userId = 0 means all)
     fun loadQuestions() {
         scope.launch {
             _state.value = _state.value.copy(isLoading = true, error = null)
             try {
-                // Get all questions from all users
-                val questions = getAllQuestionsFromDB()
+                val questions = dao.findByUserId(1)
                 _state.value = _state.value.copy(
                     questions = questions,
                     isLoading = false
@@ -44,22 +44,37 @@ class QuestionManagementViewModel {
     }
     
     fun createQuestion(
-        userId: Int = 1,  // Default admin user
+        userId: Int = 1,
         title: String,
         contentText: String,
         answerText: String,
         difficulty: Int,
+        contentImageFile: File? = null,
+        answerImageFile: File? = null,
         onSuccess: () -> Unit
     ) {
         scope.launch {
             try {
+                // Save images if provided
+                val contentImagePath = contentImageFile?.let {
+                    if (ImageUtil.isValidImage(it)) {
+                        ImageUtil.saveImage(it, "question")
+                    } else null
+                }
+                
+                val answerImagePath = answerImageFile?.let {
+                    if (ImageUtil.isValidImage(it)) {
+                        ImageUtil.saveImage(it, "answer")
+                    } else null
+                }
+                
                 dao.insert(
                     userId = userId,
                     title = title,
                     contentText = contentText,
-                    contentImagePath = null,
+                    contentImagePath = contentImagePath,
                     answerText = answerText,
-                    answerImagePath = null,
+                    answerImagePath = answerImagePath,
                     difficulty = difficulty,
                     clientId = null
                 )
@@ -80,18 +95,38 @@ class QuestionManagementViewModel {
         contentText: String,
         answerText: String,
         difficulty: Int,
+        contentImageFile: File? = null,
+        answerImageFile: File? = null,
         onSuccess: () -> Unit
     ) {
         scope.launch {
             try {
+                // Save new images if provided
+                val contentImagePath = contentImageFile?.let {
+                    if (ImageUtil.isValidImage(it)) {
+                        // Delete old image
+                        val oldQuestion = dao.findById(questionId, userId)
+                        ImageUtil.deleteImage(oldQuestion?.contentImagePath)
+                        ImageUtil.saveImage(it, "question")
+                    } else null
+                }
+                
+                val answerImagePath = answerImageFile?.let {
+                    if (ImageUtil.isValidImage(it)) {
+                        val oldQuestion = dao.findById(questionId, userId)
+                        ImageUtil.deleteImage(oldQuestion?.answerImagePath)
+                        ImageUtil.saveImage(it, "answer")
+                    } else null
+                }
+                
                 dao.update(
                     id = questionId,
                     userId = userId,
                     title = title,
                     contentText = contentText,
-                    contentImagePath = null,
+                    contentImagePath = contentImagePath,
                     answerText = answerText,
-                    answerImagePath = null,
+                    answerImagePath = answerImagePath,
                     difficulty = difficulty
                 )
                 loadQuestions()
@@ -107,6 +142,11 @@ class QuestionManagementViewModel {
     fun deleteQuestion(questionId: Int, userId: Int, onSuccess: () -> Unit) {
         scope.launch {
             try {
+                // Delete related images
+                val question = dao.findById(questionId, userId)
+                ImageUtil.deleteImage(question?.contentImagePath)
+                ImageUtil.deleteImage(question?.answerImagePath)
+                
                 dao.delete(questionId, userId)
                 loadQuestions()
                 onSuccess()
@@ -124,12 +164,5 @@ class QuestionManagementViewModel {
     
     fun clearError() {
         _state.value = _state.value.copy(error = null)
-    }
-    
-    // Helper function to get all questions
-    private fun getAllQuestionsFromDB(): List<ReasoningQuestion> {
-        // Since we want admin to see all questions, we need to modify this
-        // For now, we''ll get questions from userId 1 (admin)
-        return dao.findByUserId(1)
     }
 }

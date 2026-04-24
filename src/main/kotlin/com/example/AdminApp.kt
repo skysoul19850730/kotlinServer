@@ -23,7 +23,12 @@ fun main() = application {
         title = "Kotlin Server - Admin Panel"
     ) {
         AdminTheme {
-            AdminApp(serverManager, questionViewModel, userViewModel, submissionViewModel)
+            AdminApp(
+                serverManager = serverManager,
+                questionViewModel = questionViewModel,
+                userViewModel = userViewModel,
+                submissionViewModel = submissionViewModel
+            )
         }
     }
 }
